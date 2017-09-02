@@ -68,6 +68,12 @@ async def on_message(message):
         print("author: {}".format(message.author))
         print("role: {}".format(role.name))
         await client.add_roles(message.author, role)
+    elif message.content.startswith('!rank'):
+        name = message.content.split()[1]
+        role = define_role(name)
+        print("author: {}".format(message.author))
+        print("role: {}".format(role.name))
+        await client.add_roles(message.author, role)
 
 client.run('token')
 
