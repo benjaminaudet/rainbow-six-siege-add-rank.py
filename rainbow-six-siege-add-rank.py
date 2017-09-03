@@ -16,6 +16,8 @@ import discord
 import asyncio
 import requests
 import json
+import ranks as data
+import config
 
 client = discord.Client()
 
@@ -23,57 +25,89 @@ server = None;
 
 def get_rank(name):
     url = "https://api.r6stats.com/api/v1/players/%s/seasons?platform=uplay" % name
-    print("getting ranks...")
+    print("getting ranks of {}".format(name))
     r = requests.get(url)
-    
     player = json.loads(r.text)
-    if not player['seasons']:
-        rank = None
-    # elif player['seasons'][list(player['seasons'].keys())[0]]['emea']['ranking']['rank'] <= 4:
-    #     rank = 'Cuivre'
-    elif player['seasons'][list(player['seasons'].keys())[0]]['emea']['ranking']['rank'] <= 8:
-        rank = 'Bronze'
-    elif player['seasons'][list(player['seasons'].keys())[0]]['emea']['ranking']['rank'] <= 12:
-        rank = 'Argent'
-    elif player['seasons'][list(player['seasons'].keys())[0]]['emea']['ranking']['rank'] <= 16:
-        rank = 'Or'
-    elif player['seasons'][list(player['seasons'].keys())[0]]['emea']['ranking']['rank'] <= 20:
-        rank = 'Platine'
-    else:
-        rank = 'Diamant'
-
-    print("rank acquired")
+    print(r.text)
+    if 'status' in player.keys() and 'failed' in player['status']:
+        return False
+    elif not player['seasons']:
+        return 'Bronze'
+    rank = data.ranks[player['seasons'][list(player['seasons'].keys())[0]]['emea']['ranking']['rank'] - 1]['label']
     return rank
 
 def define_role(name):
     rank = get_rank(name)
+    if not rank:
+        return False
     for role in server.roles:
-        if 'Bronze' in role.name:
-            no_rank = role
         if rank and rank in role.name:
-            print("role finded")
             return role
-    return no_rank
+    return get_role_by_name('Bronze')
+
+def print_list_roles(list):
+    for l in list:
+        print(l.name)
+
+def get_role_by_name(name):
+    for role in server.roles:
+        if name in role.name:
+            return role
+    return False
+
+async def delete_others_roles(author, rank):
+    roles = []
+    ranks_to_remove = data.get_ranks_to_remove(rank)
+    print(ranks_to_remove)
+    for role in author.roles:
+        for rank in ranks_to_remove:
+            if rank in role.name:
+                roles.append(role)
+    await client.remove_roles(author, *roles)
+
+def print_author_and_rank(author, rank):
+    print("author: {}".format(author))
+    print("role: {}".format(rank))
+
+async def username_not_exist(message):
+    await client.send_message(message.channel, "This username doesn't exist in Uplay")
+    print("This username doesn't exist in Uplay")
 
 @client.event
 async def on_ready():
+    print("ready...")
     global server
-    server = client.get_server('server_id')
+    server = client.get_server(config.server_id)
 
 @client.event
 async def on_message(message):
     if message.content.startswith('r6s rank'):
         name = message.content.split()[2]
         role = define_role(name)
-        print("author: {}".format(message.author))
-        print("role: {}".format(role.name))
+        if not role:
+            await username_not_exist(message)
+            return
+        print_author_and_rank(message.author, role.name)
         await client.add_roles(message.author, role)
+        await delete_others_roles(message.author, role.name)
+    elif message.content.endswith('!rank'):
+        name = message.author.nick
+        role = define_role(name)
+        if not role:
+            await username_not_exist(message)
+            return
+        print_author_and_rank(message.author, role.name)
+        await client.add_roles(message.author, role)
+        await delete_others_roles(message.author, role.name)
     elif message.content.startswith('!rank'):
         name = message.content.split()[1]
         role = define_role(name)
-        print("author: {}".format(message.author))
-        print("role: {}".format(role.name))
+        if not role:
+            await username_not_exist(message)
+            return
+        print_author_and_rank(message.author, role.name)
         await client.add_roles(message.author, role)
-
-client.run('token')
+        await delete_others_roles(message.author, role.name)
+    
+client.run(config.token)
 
