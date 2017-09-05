@@ -28,7 +28,6 @@ def get_rank(name):
     print("getting ranks of {}".format(name))
     r = requests.get(url)
     player = json.loads(r.text)
-    print(r.text)
     if 'status' in player.keys() and 'failed' in player['status']:
         return False
     elif not player['seasons']:
@@ -55,15 +54,14 @@ def get_role_by_name(name):
             return role
     return False
 
-async def delete_others_roles(author, rank):
+def delete_others_roles(author, rank):
     roles = []
     ranks_to_remove = data.get_ranks_to_remove(rank)
-    print(ranks_to_remove)
     for role in author.roles:
         for rank in ranks_to_remove:
             if rank in role.name:
                 roles.append(role)
-    await client.remove_roles(author, *roles)
+    author.roles = []
 
 def print_author_and_rank(author, rank):
     print("author: {}".format(author))
@@ -72,6 +70,19 @@ def print_author_and_rank(author, rank):
 async def username_not_exist(message):
     await client.send_message(message.channel, "This username doesn't exist in Uplay")
     print("This username doesn't exist in Uplay")
+
+async def rank_command(message, index):
+    if index == 0:
+        name = message.author.nick
+    else:
+        name = message.content.split()[index]
+    role = define_role(name)
+    if not role:
+        await username_not_exist(message)
+        return
+    print_author_and_rank(message.author, role.name)
+    delete_others_roles(message.author, role.name)
+    await client.add_roles(message.author, role)
 
 @client.event
 async def on_ready():
@@ -82,32 +93,12 @@ async def on_ready():
 @client.event
 async def on_message(message):
     if message.content.startswith('r6s rank'):
-        name = message.content.split()[2]
-        role = define_role(name)
-        if not role:
-            await username_not_exist(message)
-            return
-        print_author_and_rank(message.author, role.name)
-        await client.add_roles(message.author, role)
-        await delete_others_roles(message.author, role.name)
+        await rank_command(message, 2)
     elif message.content.endswith('!rank'):
-        name = message.author.nick
-        role = define_role(name)
-        if not role:
-            await username_not_exist(message)
-            return
-        print_author_and_rank(message.author, role.name)
-        await client.add_roles(message.author, role)
-        await delete_others_roles(message.author, role.name)
+        await rank_command(message, 0)
     elif message.content.startswith('!rank'):
-        name = message.content.split()[1]
-        role = define_role(name)
-        if not role:
-            await username_not_exist(message)
-            return
-        print_author_and_rank(message.author, role.name)
-        await client.add_roles(message.author, role)
-        await delete_others_roles(message.author, role.name)
+        await rank_command(message, 1)
+        
     
 client.run(config.token)
 
